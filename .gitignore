@@ -1,4 +1,5 @@
 data/raw/
+data/tiff/
 data/processed/
 *.tmp
 __pycache__/

@@ -1,166 +1,49 @@
 #!/usr/bin/env python3
 """
-Compute yearly mean NDVI per Taiwan county from MODIS MOD13Q1 HDF4 tiles.
+Compute per-date and yearly mean NDVI per Taiwan county from extracted GeoTIFFs.
 
-Reads downloaded HDF4 files from data/raw/, computes zonal statistics
-against county boundaries, and outputs data/county_ndvi.json.
+Reads data/tiff/*.tif (already reprojected, mosaicked, QA-filtered)
+and outputs data/county_ndvi.json.
+
+If GeoTIFFs don't exist yet, run extract_ndvi_tiff.py first.
 """
 
-import os
 import json
 import glob
 import warnings
 from pathlib import Path
-from collections import defaultdict
 
 import numpy as np
 import geopandas as gpd
-from osgeo import gdal, osr
 import rasterio
 from rasterio.mask import mask as rasterio_mask
-from rasterio.merge import merge
-from rasterio.io import MemoryFile
-from rasterio.transform import Affine
 from shapely.geometry import mapping
 
-gdal.UseExceptions()
 warnings.filterwarnings("ignore")
 
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_DIR = PROJECT_DIR / "data"
-RAW_DIR = DATA_DIR / "raw"
+TIFF_DIR = DATA_DIR / "tiff"
 COUNTY_GEOJSON = Path("/home/kiang/public_html/taiwan_basecode/county/geo/20200820.json")
 OUTPUT_JSON = DATA_DIR / "county_ndvi.json"
 
-NDVI_SUBDATASET = "250m 16 days NDVI"
-QA_SUBDATASET = "250m 16 days pixel reliability"
 NDVI_SCALE = 0.0001
 DST_CRS = "EPSG:4326"
 
-from datetime import datetime as _dt, timedelta
-YEARS = range(2016, _dt.now().year + 1)
 
-
-def julian_to_date(date_key):
-    """Convert MODIS date key like 'A2016001' to 'YYYY-MM-DD'."""
-    year = int(date_key[1:5])
-    jday = int(date_key[5:8])
-    d = _dt(year, 1, 1) + timedelta(days=jday - 1)
-    return d.strftime("%Y-%m-%d")
-
-MODIS_SINU_WKT = osr.SpatialReference()
-MODIS_SINU_WKT.ImportFromProj4(
-    "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
-)
-MODIS_SINU_STR = MODIS_SINU_WKT.ExportToWkt()
-
-
-def find_hdf_files(year):
-    pattern = str(RAW_DIR / str(year) / "*.hdf")
+def find_tiff_files():
+    pattern = str(TIFF_DIR / "*.tif")
     return sorted(glob.glob(pattern))
 
 
-def get_subdataset_path(hdf_path, subdataset_name):
-    """Get the GDAL subdataset path from an HDF4 file."""
-    ds = gdal.Open(hdf_path)
-    if ds is None:
-        return None
-    subs = ds.GetSubDatasets()
-    ds = None
-    for path, desc in subs:
-        if subdataset_name in desc:
-            return path
-    return None
-
-
-def read_and_reproject_gdal(subdataset_path):
-    """Read a MODIS subdataset via GDAL and reproject to EPSG:4326.
-    Returns (data_array[1,H,W], rasterio_profile)."""
-    src_ds = gdal.Open(subdataset_path)
-    if src_ds is None:
-        return None, None
-
-    src_proj = src_ds.GetProjection()
-    if not src_proj:
-        src_proj = MODIS_SINU_STR
-
-    dst_srs = osr.SpatialReference()
-    dst_srs.SetFromUserInput(DST_CRS)
-
-    src_dt = src_ds.GetRasterBand(1).DataType
-    nodata = -3000 if src_dt in (gdal.GDT_Int16, gdal.GDT_Int32, gdal.GDT_Float32, gdal.GDT_Float64) else 255
-    warp_opts = gdal.WarpOptions(
-        format="MEM",
-        srcSRS=src_proj,
-        dstSRS=dst_srs.ExportToWkt(),
-        resampleAlg=gdal.GRA_NearestNeighbour,
-        dstNodata=nodata,
-    )
-    dst_ds = gdal.Warp("", src_ds, options=warp_opts)
-    src_ds = None
-
-    if dst_ds is None:
-        return None, None
-
-    data = dst_ds.ReadAsArray().astype(np.float32)
-    gt = dst_ds.GetGeoTransform()
-    w, h = dst_ds.RasterXSize, dst_ds.RasterYSize
-    dst_ds = None
-
-    transform = Affine.from_gdal(*gt)
-    profile = {
-        "driver": "GTiff",
-        "dtype": "float32",
-        "width": w,
-        "height": h,
-        "count": 1,
-        "crs": DST_CRS,
-        "transform": transform,
-        "nodata": float(nodata),
-    }
-    return data.reshape(1, h, w), profile
-
-
-def mosaic_tiles(tile_data_list):
-    if len(tile_data_list) == 1:
-        return tile_data_list[0]
-
-    memfiles = []
-    datasets = []
-    for data, profile in tile_data_list:
-        memfile = MemoryFile()
-        with memfile.open(**profile) as ds:
-            ds.write(data)
-        datasets.append(memfile.open())
-        memfiles.append(memfile)
-
-    mosaic_data, mosaic_transform = merge(datasets)
-    profile = datasets[0].profile.copy()
-    profile.update({
-        "width": mosaic_data.shape[2],
-        "height": mosaic_data.shape[1],
-        "transform": mosaic_transform,
-    })
-
-    for ds in datasets:
-        ds.close()
-    for mf in memfiles:
-        mf.close()
-
-    return mosaic_data, profile
-
-
-def compute_zonal_mean(data, profile, geometry):
-    with MemoryFile() as memfile:
-        with memfile.open(**profile) as ds:
-            ds.write(data)
-        with memfile.open() as ds:
-            try:
-                out_image, _ = rasterio_mask(
-                    ds, [mapping(geometry)], crop=True, nodata=-3000
-                )
-            except (ValueError, Exception):
-                return np.nan
+def compute_zonal_mean(tiff_path, geometry):
+    with rasterio.open(tiff_path) as ds:
+        try:
+            out_image, _ = rasterio_mask(
+                ds, [mapping(geometry)], crop=True, nodata=-3000
+            )
+        except (ValueError, Exception):
+            return np.nan
 
     valid = out_image[0]
     valid = valid[(valid > -2000) & (valid < 10000)]
@@ -169,59 +52,12 @@ def compute_zonal_mean(data, profile, geometry):
     return float(np.mean(valid))
 
 
-def process_date(hdf_files, counties_gdf):
-    tile_data = []
-    for hdf_path in hdf_files:
-        ndvi_sub = get_subdataset_path(hdf_path, NDVI_SUBDATASET)
-        qa_sub = get_subdataset_path(hdf_path, QA_SUBDATASET)
-        if ndvi_sub is None:
-            print(f"    Warning: No NDVI subdataset in {hdf_path}")
-            continue
-
-        ndvi_data, ndvi_profile = read_and_reproject_gdal(ndvi_sub)
-        if ndvi_data is None:
-            print(f"    Warning: Failed to reproject {hdf_path}")
-            continue
-
-        if qa_sub:
-            qa_data, _ = read_and_reproject_gdal(qa_sub)
-            if qa_data is not None:
-                bad_mask = (qa_data[0] > 1) | (qa_data[0] < 0)
-                ndvi_data[0][bad_mask] = -3000
-
-        tile_data.append((ndvi_data, ndvi_profile))
-
-    if not tile_data:
-        return {}
-
-    mosaic_data, mosaic_profile = mosaic_tiles(tile_data)
-
-    county_ndvi = {}
-    for _, row in counties_gdf.iterrows():
-        code = row["COUNTYCODE"]
-        mean_val = compute_zonal_mean(mosaic_data, mosaic_profile, row.geometry)
-        if not np.isnan(mean_val):
-            county_ndvi[code] = mean_val * NDVI_SCALE
-    return county_ndvi
-
-
-def group_hdf_by_date(hdf_files):
-    date_groups = defaultdict(list)
-    for f in hdf_files:
-        basename = os.path.basename(f)
-        parts = basename.split(".")
-        if len(parts) >= 2:
-            date_key = parts[1]
-            date_groups[date_key].append(f)
-    return dict(date_groups)
-
-
 def main():
-    print("Loading county boundaries...")
+    print("Loading county boundaries...", flush=True)
     counties_gdf = gpd.read_file(str(COUNTY_GEOJSON))
     if counties_gdf.crs is None or str(counties_gdf.crs) != DST_CRS:
         counties_gdf = counties_gdf.to_crs(DST_CRS)
-    print(f"  Loaded {len(counties_gdf)} counties")
+    print(f"  Loaded {len(counties_gdf)} counties", flush=True)
 
     counties_proj = counties_gdf.to_crs("EPSG:3826")
     area_ha = {row["COUNTYCODE"]: round(row.geometry.area / 10000, 1)
@@ -245,41 +81,51 @@ def main():
             code = county.get("code")
             if code in results:
                 results[code]["ndvi_dates"] = county.get("ndvi_dates", {})
-        print(f"  Loaded previous results, will skip already-processed years")
+        print(f"  Loaded previous results", flush=True)
 
-    for year in YEARS:
-        year_str = str(year)
-        existing_dates = [
-            d for d in results[list(results.keys())[0]]["ndvi_dates"]
-            if d.startswith(year_str)
-        ]
-        if existing_dates:
-            print(f"\n{year}: {len(existing_dates)} composites already processed, skipping")
-            continue
+    tiff_files = find_tiff_files()
+    if not tiff_files:
+        print("No GeoTIFF files found in data/tiff/. "
+              "Run extract_ndvi_tiff.py first.", flush=True)
+        return
 
-        print(f"\nProcessing {year}...")
-        hdf_files = find_hdf_files(year)
-        if not hdf_files:
-            print(f"  No HDF files found for {year}, skipping")
-            continue
+    existing_dates = set()
+    for code in results:
+        existing_dates.update(results[code]["ndvi_dates"].keys())
 
-        date_groups = group_hdf_by_date(hdf_files)
-        print(f"  Found {len(hdf_files)} files in {len(date_groups)} composites")
+    new_tiffs = []
+    for tiff_path in tiff_files:
+        date_str = Path(tiff_path).stem
+        if date_str not in existing_dates:
+            new_tiffs.append(tiff_path)
 
-        for i, (date_key, files) in enumerate(sorted(date_groups.items()), 1):
-            iso_date = julian_to_date(date_key)
-            print(f"  [{i}/{len(date_groups)}] Processing {date_key} ({iso_date})...")
-            county_ndvi = process_date(files, counties_gdf)
-            for code, val in county_ndvi.items():
-                if 0 < val < 1:
-                    results[code]["ndvi_dates"][iso_date] = round(val, 4)
+    if not new_tiffs:
+        print(f"\nAll {len(tiff_files)} composites already processed.", flush=True)
+    else:
+        print(f"\n{len(new_tiffs)} new composites to process "
+              f"({len(tiff_files) - len(new_tiffs)} already done)", flush=True)
+
+        for i, tiff_path in enumerate(new_tiffs, 1):
+            date_str = Path(tiff_path).stem
+            print(f"  [{i}/{len(new_tiffs)}] {date_str}...", flush=True)
+
+            for _, row in counties_gdf.iterrows():
+                code = row["COUNTYCODE"]
+                mean_val = compute_zonal_mean(tiff_path, row.geometry)
+                if not np.isnan(mean_val):
+                    ndvi = mean_val * NDVI_SCALE
+                    if 0 < ndvi < 1:
+                        results[code]["ndvi_dates"][date_str] = round(ndvi, 4)
+
+    from datetime import datetime as _dt
+    years = range(2016, _dt.now().year + 1)
 
     counties_out = []
     for code, county in results.items():
         dates = county["ndvi_dates"]
         ndvi_yearly = {}
         green_ha_yearly = {}
-        for year in YEARS:
+        for year in years:
             ys = str(year)
             year_vals = [v for d, v in dates.items() if d.startswith(ys)]
             if year_vals:
@@ -292,7 +138,7 @@ def main():
             "name": county["name"],
             "name_en": county["name_en"],
             "area_ha": county["area_ha"],
-            "ndvi_dates": dates,
+            "ndvi_dates": dict(sorted(dates.items())),
             "ndvi_yearly": ndvi_yearly,
             "green_ha_yearly": green_ha_yearly,
         })
@@ -303,7 +149,7 @@ def main():
             "resolution": "250m",
             "temporal_composite": "16-day",
             "aggregation": "per composite + yearly mean",
-            "date_range": f"{YEARS.start}-{YEARS.stop - 1}",
+            "date_range": f"{years.start}-{years.stop - 1}",
             "generated": str(np.datetime64("today")),
         },
         "counties": counties_out,
@@ -312,9 +158,9 @@ def main():
     OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
-    print(f"\nOutput written to {OUTPUT_JSON}")
+    print(f"\nOutput written to {OUTPUT_JSON}", flush=True)
 
-    print("\nSummary:")
+    print("\nSummary:", flush=True)
     for county in counties_out:
         n_dates = len(county["ndvi_dates"])
         n_years = len(county["ndvi_yearly"])
@@ -323,10 +169,12 @@ def main():
             print(
                 f"  {county['name']} ({county['name_en']}): "
                 f"{n_dates} composites, {n_years} years, "
-                f"NDVI {min(vals):.4f}-{max(vals):.4f}"
+                f"NDVI {min(vals):.4f}-{max(vals):.4f}",
+                flush=True,
             )
         else:
-            print(f"  {county['name']} ({county['name_en']}): no data")
+            print(f"  {county['name']} ({county['name_en']}): no data",
+                  flush=True)
 
 
 if __name__ == "__main__":
