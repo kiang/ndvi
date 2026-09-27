@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
 TILES = ["h28v06", "h29v06"]
 START_DATE = "2016-01-01"
-END_DATE = "2025-12-31"
+END_DATE = datetime.now().strftime("%Y-%m-%d")
 PRODUCT = "MOD13Q1"
 VERSION = "061"
 
@@ -87,35 +87,41 @@ def search_granules():
         time.sleep(0.5)
     return all_links
 
-def download_file(session, url, dest_path):
+def download_file(session, url, dest_path, retries=2):
     """Download a file with Earthdata authentication (handles redirects)."""
     if dest_path.exists() and dest_path.stat().st_size > 1000:
         return True
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = dest_path.with_suffix(".tmp")
-    try:
-        resp = session.get(url, stream=True, timeout=300, allow_redirects=True)
-        if resp.status_code == 401:
+    for attempt in range(retries + 1):
+        try:
             resp = session.get(url, allow_redirects=False, timeout=60)
             if resp.status_code in (301, 302, 303, 307):
                 redirect_url = resp.headers.get("Location")
-                resp = session.get(redirect_url, stream=True, timeout=300)
-        resp.raise_for_status()
-        total = int(resp.headers.get("Content-Length", 0))
-        downloaded = 0
-        with open(tmp_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                f.write(chunk)
-                downloaded += len(chunk)
-        if total > 0 and downloaded < total * 0.9:
-            raise Exception(f"Incomplete download: {downloaded}/{total}")
-        tmp_path.rename(dest_path)
-        return True
-    except Exception as e:
-        print(f"  Error downloading {url}: {e}")
-        if tmp_path.exists():
-            tmp_path.unlink()
-        return False
+                resp = requests.get(redirect_url, stream=True, timeout=300)
+            resp.raise_for_status()
+            total = int(resp.headers.get("Content-Length", 0))
+            if total > 0 and total < 10000:
+                raise Exception(f"Response too small ({total} bytes), likely error page")
+            downloaded = 0
+            with open(tmp_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+            if downloaded < 10000:
+                raise Exception(f"Downloaded only {downloaded} bytes")
+            if total > 0 and downloaded < total * 0.9:
+                raise Exception(f"Incomplete: {downloaded}/{total}")
+            tmp_path.rename(dest_path)
+            return True
+        except Exception as e:
+            if tmp_path.exists():
+                tmp_path.unlink()
+            if attempt < retries:
+                time.sleep(3)
+                continue
+            print(f"  Error: {e}", flush=True)
+            return False
 
 def main():
     session = get_earthdata_session()

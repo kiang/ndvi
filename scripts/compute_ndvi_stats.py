@@ -37,7 +37,8 @@ QA_SUBDATASET = "250m 16 days pixel reliability"
 NDVI_SCALE = 0.0001
 DST_CRS = "EPSG:4326"
 
-YEARS = range(2016, 2026)
+from datetime import datetime as _dt
+YEARS = range(2016, _dt.now().year + 1)
 
 MODIS_SINU_WKT = osr.SpatialReference()
 MODIS_SINU_WKT.ImportFromProj4(
