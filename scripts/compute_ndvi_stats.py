@@ -214,13 +214,20 @@ def main():
         counties_gdf = counties_gdf.to_crs(DST_CRS)
     print(f"  Loaded {len(counties_gdf)} counties")
 
+    counties_proj = counties_gdf.to_crs("EPSG:3826")
+    area_ha = {row["COUNTYCODE"]: round(row.geometry.area / 10000, 1)
+               for _, row in counties_proj.iterrows()}
+
     results = {}
     for _, row in counties_gdf.iterrows():
-        results[row["COUNTYCODE"]] = {
-            "code": row["COUNTYCODE"],
+        code = row["COUNTYCODE"]
+        results[code] = {
+            "code": code,
             "name": row["COUNTYNAME"],
             "name_en": row["COUNTYENG"],
+            "area_ha": area_ha.get(code, 0),
             "ndvi_yearly": {},
+            "green_ha_yearly": {},
         }
 
     for year in YEARS:
@@ -243,8 +250,11 @@ def main():
 
         for code, values in yearly_values.items():
             if values:
-                results[code]["ndvi_yearly"][str(year)] = round(
-                    float(np.mean(values)), 4
+                mean_ndvi = round(float(np.mean(values)), 4)
+                results[code]["ndvi_yearly"][str(year)] = mean_ndvi
+                county_area = results[code]["area_ha"]
+                results[code]["green_ha_yearly"][str(year)] = round(
+                    mean_ndvi * county_area, 1
                 )
 
     output = {
@@ -269,10 +279,11 @@ def main():
         years_with_data = len(county["ndvi_yearly"])
         if years_with_data > 0:
             vals = list(county["ndvi_yearly"].values())
+            green_vals = list(county["green_ha_yearly"].values())
             print(
                 f"  {county['name']} ({county['name_en']}): "
-                f"{years_with_data} years, "
-                f"range {min(vals):.4f}-{max(vals):.4f}"
+                f"{years_with_data} years, NDVI {min(vals):.4f}-{max(vals):.4f}, "
+                f"green {min(green_vals):,.0f}-{max(green_vals):,.0f} ha"
             )
         else:
             print(f"  {county['name']} ({county['name_en']}): no data")

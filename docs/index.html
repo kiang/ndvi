@@ -207,7 +207,8 @@ body {
 }
 .county-table th:nth-child(2),
 .county-table th:nth-child(3),
-.county-table th:nth-child(4) { text-align: right; }
+.county-table th:nth-child(4),
+.county-table th:nth-child(5) { text-align: right; }
 .county-table td {
   padding: 7px 8px;
   border-bottom: 1px solid var(--border-light);
@@ -215,7 +216,8 @@ body {
 }
 .county-table td:nth-child(2),
 .county-table td:nth-child(3),
-.county-table td:nth-child(4) { text-align: right; }
+.county-table td:nth-child(4),
+.county-table td:nth-child(5) { text-align: right; }
 .county-table tr {
   cursor: pointer;
   transition: background 0.15s;
@@ -349,9 +351,10 @@ body {
         <thead>
           <tr>
             <th><button class="sort-btn" data-sort="name">縣市 <span class="sort-indicator"></span></button></th>
-            <th><button class="sort-btn" data-sort="latest">最新值 <span class="sort-indicator"></span></button></th>
-            <th><button class="sort-btn" data-sort="earliest">起始值 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-btn" data-sort="green">綠覆蓋(公頃) <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-btn" data-sort="latest">NDVI <span class="sort-indicator"></span></button></th>
             <th><button class="sort-btn" data-sort="change">變化 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-btn" data-sort="green_change">覆蓋變化 <span class="sort-indicator"></span></button></th>
           </tr>
         </thead>
         <tbody id="county-tbody"></tbody>
@@ -370,17 +373,23 @@ body {
       </div>
       <div class="detail-stats">
         <div class="stat-tile">
+          <span class="stat-label">估計綠覆蓋面積</span>
+          <span class="stat-value" id="stat-green"></span>
+          <span class="stat-delta" id="stat-green-unit" style="color:var(--ink-muted)">公頃</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">覆蓋面積變化</span>
+          <span class="stat-value" id="stat-green-change"></span>
+          <span class="stat-delta" id="stat-green-delta"></span>
+        </div>
+        <div class="stat-tile">
           <span class="stat-label">最新 NDVI</span>
           <span class="stat-value" id="stat-latest"></span>
         </div>
         <div class="stat-tile">
-          <span class="stat-label">十年變化</span>
+          <span class="stat-label">NDVI 變化</span>
           <span class="stat-value" id="stat-change"></span>
           <span class="stat-delta" id="stat-delta"></span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">全國平均</span>
-          <span class="stat-value" id="stat-avg"></span>
         </div>
       </div>
       <div id="chart-container">
@@ -454,6 +463,23 @@ body {
     return val != null ? val.toFixed(3) : '—';
   }
 
+  function formatHa(val) {
+    if (val == null) return '—';
+    return val >= 1000 ? Math.round(val).toLocaleString('zh-TW') : val.toFixed(0);
+  }
+
+  function getLatestGreen(county) {
+    if (!county.green_ha_yearly) return null;
+    const years = Object.keys(county.green_ha_yearly).sort();
+    return years.length ? county.green_ha_yearly[years[years.length - 1]] : null;
+  }
+
+  function getEarliestGreen(county) {
+    if (!county.green_ha_yearly) return null;
+    const years = Object.keys(county.green_ha_yearly).sort();
+    return years.length ? county.green_ha_yearly[years[0]] : null;
+  }
+
   function initMap() {
     map = L.map('map', {
       center: [23.7, 121],
@@ -469,7 +495,9 @@ body {
 
   function updateMap() {
     if (geoLayer) map.removeLayer(geoLayer);
-    const latestYear = '2025';
+    const allYears = ndviData.counties.flatMap(c => Object.keys(c.ndvi_yearly)).sort();
+    const latestYear = allYears[allYears.length - 1] || '2025';
+    document.getElementById('map-year-label').textContent = latestYear;
     geoLayer = L.geoJSON(geoData, {
       style: function(feature) {
         const county = getCounty(feature.properties.COUNTYCODE);
@@ -486,11 +514,12 @@ body {
       onEachFeature: function(feature, layer) {
         const county = getCounty(feature.properties.COUNTYCODE);
         if (county) {
-          const latest = county.ndvi_yearly['2025'];
-          layer.bindTooltip(
-            `<strong>${county.name}</strong><br>NDVI: ${formatNdvi(latest)}`,
-            { sticky: true, className: 'ndvi-tooltip' }
-          );
+          const latestYear = getLatestYear(county);
+          const latest = county.ndvi_yearly[latestYear];
+          const greenHa = county.green_ha_yearly ? county.green_ha_yearly[latestYear] : null;
+          let tip = `<strong>${county.name}</strong><br>NDVI: ${formatNdvi(latest)}`;
+          if (greenHa != null) tip += `<br>綠覆蓋: ${formatHa(greenHa)} 公頃`;
+          layer.bindTooltip(tip, { sticky: true, className: 'ndvi-tooltip' });
         }
         layer.on('click', function() {
           selectCounty(feature.properties.COUNTYCODE);
@@ -506,7 +535,10 @@ body {
       const latest = county.ndvi_yearly[years[years.length - 1]];
       const earliest = county.ndvi_yearly[years[0]];
       const change = (latest != null && earliest != null) ? latest - earliest : null;
-      return { county, latest, earliest, change };
+      const greenLatest = getLatestGreen(county);
+      const greenEarliest = getEarliestGreen(county);
+      const greenChange = (greenLatest != null && greenEarliest != null) ? greenLatest - greenEarliest : null;
+      return { county, latest, earliest, change, greenLatest, greenChange };
     });
 
     rows.sort((a, b) => {
@@ -514,8 +546,9 @@ body {
       switch (sortState.key) {
         case 'name': va = a.county.name; vb = b.county.name; break;
         case 'latest': va = a.latest || 0; vb = b.latest || 0; break;
-        case 'earliest': va = a.earliest || 0; vb = b.earliest || 0; break;
         case 'change': va = a.change || 0; vb = b.change || 0; break;
+        case 'green': va = a.greenLatest || 0; vb = b.greenLatest || 0; break;
+        case 'green_change': va = a.greenChange || 0; vb = b.greenChange || 0; break;
       }
       if (sortState.key === 'name') {
         return sortState.asc ? va.localeCompare(vb, 'zh-TW') : vb.localeCompare(va, 'zh-TW');
@@ -523,16 +556,20 @@ body {
       return sortState.asc ? va - vb : vb - va;
     });
 
-    tbody.innerHTML = rows.map(({ county, latest, earliest, change }) => {
+    tbody.innerHTML = rows.map(({ county, latest, change, greenLatest, greenChange }) => {
       const changeStr = change != null
         ? `<span class="${change >= 0 ? 'delta-up' : 'delta-down'}">${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}%</span>`
+        : '—';
+      const greenChangeStr = greenChange != null
+        ? `<span class="${greenChange >= 0 ? 'delta-up' : 'delta-down'}">${greenChange >= 0 ? '+' : ''}${formatHa(Math.abs(greenChange))}</span>`
         : '—';
       const active = county.code === selectedCode ? ' class="active"' : '';
       return `<tr${active} data-code="${county.code}">
         <td class="county-name-cell">${county.name}</td>
+        <td>${formatHa(greenLatest)}</td>
         <td>${formatNdvi(latest)}</td>
-        <td>${formatNdvi(earliest)}</td>
         <td>${changeStr}</td>
+        <td>${greenChangeStr}</td>
       </tr>`;
     }).join('');
 
@@ -564,7 +601,25 @@ body {
     const latest = county.ndvi_yearly[years[years.length - 1]];
     const earliest = county.ndvi_yearly[years[0]];
     const change = (latest != null && earliest != null) ? latest - earliest : null;
-    const natAvg = getNationalAvg(years[years.length - 1]);
+
+    const greenLatest = getLatestGreen(county);
+    const greenEarliest = getEarliestGreen(county);
+    const greenChange = (greenLatest != null && greenEarliest != null) ? greenLatest - greenEarliest : null;
+
+    document.getElementById('stat-green').textContent = formatHa(greenLatest);
+    const greenChangeEl = document.getElementById('stat-green-change');
+    const greenDeltaEl = document.getElementById('stat-green-delta');
+    if (greenChange != null) {
+      greenChangeEl.textContent = `${greenChange >= 0 ? '+' : '-'}${formatHa(Math.abs(greenChange))}`;
+      greenChangeEl.className = `stat-value ${greenChange >= 0 ? 'delta-up' : 'delta-down'}`;
+      const greenPct = ((greenChange / greenEarliest) * 100).toFixed(1);
+      greenDeltaEl.textContent = `自 ${years[0]} 年起 ${greenChange >= 0 ? '+' : ''}${greenPct}% 公頃`;
+      greenDeltaEl.className = `stat-delta ${greenChange >= 0 ? 'delta-up' : 'delta-down'}`;
+    } else {
+      greenChangeEl.textContent = '—';
+      greenChangeEl.className = 'stat-value';
+      greenDeltaEl.textContent = '';
+    }
 
     document.getElementById('stat-latest').textContent = formatNdvi(latest);
 
@@ -582,8 +637,6 @@ body {
       deltaEl.textContent = '';
     }
 
-    document.getElementById('stat-avg').textContent = formatNdvi(natAvg);
-
     renderChart(county);
     updateMap();
     renderTable();
@@ -592,8 +645,14 @@ body {
   function renderChart(county) {
     const ctx = document.getElementById('ndvi-chart');
 
-    const countyValues = YEARS.map(y => county.ndvi_yearly[y] || null);
-    const avgValues = YEARS.map(y => getNationalAvg(y));
+    const greenYearly = county.green_ha_yearly || {};
+    const countyValues = YEARS.map(y => greenYearly[y] || null);
+    const avgGreenValues = YEARS.map(y => {
+      const vals = ndviData.counties
+        .map(c => c.green_ha_yearly ? c.green_ha_yearly[y] : null)
+        .filter(v => v != null);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    });
 
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       && document.documentElement.dataset.theme !== 'light'
@@ -611,7 +670,7 @@ body {
         labels: YEARS,
         datasets: [
           {
-            label: county.name,
+            label: county.name + ' 綠覆蓋(公頃)',
             data: countyValues,
             borderColor: accentColor,
             backgroundColor: accentColor + '18',
@@ -626,7 +685,7 @@ body {
           },
           {
             label: '全國平均',
-            data: avgValues,
+            data: avgGreenValues,
             borderColor: mutedColor,
             borderWidth: 1.5,
             borderDash: [],
@@ -669,7 +728,8 @@ body {
             bodyFont: { size: 12, family: "'IBM Plex Sans', sans-serif" },
             callbacks: {
               label: function(ctx) {
-                return `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(4) : '—'}`;
+                if (ctx.parsed.y == null) return `${ctx.dataset.label}: —`;
+                return `${ctx.dataset.label}: ${Math.round(ctx.parsed.y).toLocaleString('zh-TW')} 公頃`;
               }
             }
           },
@@ -688,7 +748,7 @@ body {
             ticks: {
               color: tickColor,
               font: { size: 11, family: "'IBM Plex Sans', sans-serif" },
-              callback: v => v.toFixed(2),
+              callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'K' : v.toFixed(0),
             },
             border: { display: false },
           },
