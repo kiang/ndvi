@@ -819,9 +819,6 @@ body {
     const meta = ndviData.metadata || {};
     const note = document.getElementById('data-note');
     note.textContent = `資料來源：${meta.product || 'MODIS MOD13Q1'} · ${meta.resolution || '250m'} · ${meta.aggregation || '年均值'} · ${meta.date_range || ''}`;
-    if (meta.product && meta.product.includes('SAMPLE')) {
-      note.textContent += ' — 預覽用範例資料';
-    }
 
     initMap();
     updateMap();

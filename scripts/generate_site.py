@@ -41,12 +41,11 @@ def main():
     with open(COUNTY_GEOJSON, encoding="utf-8") as f:
         geojson_data = json.load(f)
 
-    if NDVI_JSON.exists():
-        with open(NDVI_JSON, encoding="utf-8") as f:
-            ndvi_data = json.load(f)
-    else:
-        print("Warning: county_ndvi.json not found, using sample data")
-        ndvi_data = generate_sample_data(geojson_data)
+    if not NDVI_JSON.exists():
+        print("Error: county_ndvi.json not found. Run compute_ndvi_stats.py first.")
+        return
+    with open(NDVI_JSON, encoding="utf-8") as f:
+        ndvi_data = json.load(f)
 
     simplified_geo = simplify_geojson(geojson_data)
 
@@ -62,39 +61,6 @@ def main():
     print(f"Site generated in {DOCS_DIR}")
     print(f"  data/county_ndvi.json")
     print(f"  data/counties.geojson")
-
-
-def generate_sample_data(geojson_data):
-    """Generate plausible sample NDVI data for development/preview."""
-    import random
-    random.seed(42)
-    counties = []
-    for feature in geojson_data["features"]:
-        props = feature["properties"]
-        base = random.uniform(0.35, 0.65)
-        trend = random.uniform(-0.008, 0.005)
-        ndvi_yearly = {}
-        for year in range(2016, 2026):
-            noise = random.uniform(-0.02, 0.02)
-            val = base + trend * (year - 2016) + noise
-            ndvi_yearly[str(year)] = round(max(0.1, min(0.9, val)), 4)
-        counties.append({
-            "code": props["COUNTYCODE"],
-            "name": props["COUNTYNAME"],
-            "name_en": props["COUNTYENG"],
-            "ndvi_yearly": ndvi_yearly,
-        })
-    return {
-        "metadata": {
-            "product": "MOD13Q1 v061 (SAMPLE DATA)",
-            "resolution": "250m",
-            "temporal_composite": "16-day",
-            "aggregation": "yearly mean",
-            "date_range": "2016-2025",
-            "generated": "sample",
-        },
-        "counties": counties,
-    }
 
 
 if __name__ == "__main__":
