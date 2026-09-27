@@ -1,0 +1,676 @@
+<title>專案說明</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --surface: #f5f6f2;
+  --surface-card: #ffffff;
+  --ink: #1a1f14;
+  --ink-2: #3a4230;
+  --ink-3: #5a6450;
+  --ink-muted: #8a9478;
+  --border: #d8dece;
+  --border-light: #e8ece0;
+  --accent: #2d6a1e;
+  --accent-bg: #e8f2e4;
+  --code-bg: #f0f2eb;
+  --code-border: #dde2d4;
+  --flow-line: #c0ccb0;
+  --flow-node: #ffffff;
+  --flow-node-stroke: #9aaa86;
+  --tag-bg: #eef3e8;
+  --tag-border: #c8d4b8;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #0e110c;
+    --surface-card: #181c15;
+    --ink: #e8ecdf;
+    --ink-2: #c0c8b0;
+    --ink-3: #8a9478;
+    --ink-muted: #5e6a50;
+    --border: #2a3020;
+    --border-light: #202618;
+    --accent: #5cb34a;
+    --accent-bg: #1a2a16;
+    --code-bg: #141814;
+    --code-border: #2a3024;
+    --flow-line: #3a4830;
+    --flow-node: #1e2418;
+    --flow-node-stroke: #4a5a3e;
+    --tag-bg: #1a2416;
+    --tag-border: #2e3e24;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #0e110c;
+  --surface-card: #181c15;
+  --ink: #e8ecdf;
+  --ink-2: #c0c8b0;
+  --ink-3: #8a9478;
+  --ink-muted: #5e6a50;
+  --border: #2a3020;
+  --border-light: #202618;
+  --accent: #5cb34a;
+  --accent-bg: #1a2a16;
+  --code-bg: #141814;
+  --code-border: #2a3024;
+  --flow-line: #3a4830;
+  --flow-node: #1e2418;
+  --flow-node-stroke: #4a5a3e;
+  --tag-bg: #1a2416;
+  --tag-border: #2e3e24;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0 16px;
+  padding-block: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', 'Noto Sans TC', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 40px 0 80px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-bottom: 32px;
+}
+.back-link:hover { text-decoration: underline; }
+.back-link svg { width: 14px; height: 14px; }
+
+h1 {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+.subtitle {
+  font-size: 16px;
+  color: var(--ink-3);
+  margin: 0 0 40px;
+  line-height: 1.6;
+}
+
+h2 {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 21px;
+  font-weight: 700;
+  margin: 48px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--ink);
+}
+h2:first-of-type { margin-top: 0; }
+
+h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 28px 0 10px;
+  color: var(--ink-2);
+}
+
+p { margin: 0 0 16px; color: var(--ink-2); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--accent); }
+
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  padding: 16px 20px;
+  overflow-x: auto;
+  margin: 0 0 20px;
+  line-height: 1.55;
+}
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--tag-bg);
+  border: 1px solid var(--tag-border);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 24px;
+  margin: 0 0 16px;
+}
+
+.problem-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0 24px;
+}
+
+.problem-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 20px;
+}
+.problem-card .label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin-bottom: 8px;
+}
+.problem-card p { font-size: 14px; margin: 0; }
+
+/* Pipeline flow diagram */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 24px 0;
+  position: relative;
+}
+.pipeline::before {
+  content: '';
+  position: absolute;
+  left: 27px;
+  top: 28px;
+  bottom: 28px;
+  width: 2px;
+  background: var(--flow-line);
+}
+.pipe-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 12px 0;
+  position: relative;
+}
+.pipe-num {
+  width: 56px;
+  min-width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--flow-node);
+  border: 2px solid var(--flow-node-stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--accent);
+  position: relative;
+  z-index: 1;
+}
+.pipe-body {
+  padding-top: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.pipe-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.pipe-file {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.pipe-desc {
+  font-size: 14px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+/* Data spec table */
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin: 16px 0;
+}
+.spec-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.spec-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--ink-2);
+  vertical-align: top;
+}
+.spec-table td:first-child {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* File tree */
+.file-tree {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink-3);
+  margin: 16px 0;
+  padding: 16px 20px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+}
+.file-tree .dir { color: var(--accent); font-weight: 500; }
+.file-tree .comment { color: var(--ink-muted); font-style: italic; }
+
+/* Architecture SVG */
+.arch-diagram {
+  margin: 24px 0;
+  display: flex;
+  justify-content: center;
+}
+.arch-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Tech list */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.tech-item {
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.tech-item .name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+.tech-item .role {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.usage-step {
+  margin: 16px 0;
+}
+.usage-step .step-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+@media (max-width: 600px) {
+  h1 { font-size: 24px; }
+  .problem-section { grid-template-columns: 1fr; }
+  .tech-grid { grid-template-columns: 1fr; }
+  .pipe-num { width: 42px; min-width: 42px; height: 42px; font-size: 15px; }
+  .pipeline::before { left: 20px; }
+}
+</style>
+
+<div class="page">
+
+<a href="index.html" class="back-link">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  返回 NDVI 報告
+</a>
+
+<h1>專案技術說明</h1>
+<p class="subtitle">
+  本專案透過 NASA MODIS 衛星影像，自動化分析台灣 22 個縣市在 2016 至 2025 年間的植被覆蓋變化趨勢，並以互動式網頁呈現分析結果。
+</p>
+
+<h2>問題背景</h2>
+
+<div class="problem-section">
+  <div class="problem-card">
+    <div class="label">需要解答的問題</div>
+    <p>台灣各縣市近十年的樹木覆蓋率（植被覆蓋）是增加還是減少？變化幅度有多大？哪些縣市的植被退化最為嚴重？</p>
+  </div>
+  <div class="problem-card">
+    <div class="label">為什麼用 NDVI</div>
+    <p>NDVI（常態化差值植生指標）是衡量植被健康與密度的標準遙測指標。數值範圍 0 到 1，越高代表植被越茂密。透過長期追蹤 NDVI 變化，可客觀量化植被增減趨勢。</p>
+  </div>
+</div>
+
+<h2>資料來源</h2>
+
+<div class="card">
+  <table class="spec-table">
+    <thead>
+      <tr><th>項目</th><th>規格</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>衛星產品</td><td>NASA MODIS MOD13Q1 v061（Terra 衛星）</td></tr>
+      <tr><td>空間解析度</td><td>250 公尺</td></tr>
+      <tr><td>時間解析度</td><td>16 天合成影像</td></tr>
+      <tr><td>NDVI 計算</td><td>產品已預先計算 NDVI，並附帶品質旗標，無需從原始波段計算</td></tr>
+      <tr><td>涵蓋圖磚</td><td>h28v06、h29v06（完整覆蓋台灣本島及離島）</td></tr>
+      <tr><td>時間範圍</td><td>2016 年 1 月至 2025 年 12 月（約 460 筆影像）</td></tr>
+      <tr><td>資料格式</td><td>HDF4（NASA EOS-HDF）</td></tr>
+      <tr><td>資料取得</td><td>NASA LP DAAC，透過 CMR API 搜尋、HTTPS 下載</td></tr>
+      <tr><td>行政區界</td><td>內政部 22 縣市行政區界 GeoJSON（2020 年 8 月版本）</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+  選擇 MODIS MOD13Q1 而非 Sentinel-2 或 Landsat 的原因：MOD13Q1 提供預先計算且經品質過濾的 NDVI 數值，250 公尺解析度在縣市層級分析已足夠，且自 2000 年起即有連續觀測記錄，是長期植被變遷研究的首選資料源。
+</p>
+
+<h2>系統架構</h2>
+
+<p>
+  整個系統由三支 Python 腳本組成一條自動化資料處理管線，最終產出靜態 HTML 網站。無需後端伺服器，所有計算在本機完成。
+</p>
+
+<div class="arch-diagram">
+<svg viewBox="0 0 660 280" xmlns="http://www.w3.org/2000/svg">
+  <!-- Arrows -->
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="var(--flow-line)" stroke-width="1.5"/>
+    </marker>
+  </defs>
+  <!-- Data source -->
+  <rect x="10" y="20" width="140" height="52" rx="6" fill="var(--flow-node)" stroke="var(--flow-node-stroke)" stroke-width="1.5"/>
+  <text x="80" y="42" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-family="'IBM Plex Sans', sans-serif" font-weight="600">NASA LP DAAC</text>
+  <text x="80" y="58" text-anchor="middle" fill="var(--ink-muted)" font-size="10" font-family="'IBM Plex Sans', sans-serif">MOD13Q1 HDF4</text>
+
+  <line x1="150" y1="46" x2="190" y2="46" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- Download script -->
+  <rect x="195" y="16" width="140" height="60" rx="6" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="1.5"/>
+  <text x="265" y="38" text-anchor="middle" fill="var(--accent)" font-size="11" font-family="'IBM Plex Mono', monospace" font-weight="500">download_modis</text>
+  <text x="265" y="54" text-anchor="middle" fill="var(--ink-3)" font-size="10" font-family="'IBM Plex Sans', sans-serif">CMR 搜尋 + 下載</text>
+  <text x="265" y="68" text-anchor="middle" fill="var(--ink-muted)" font-size="9" font-family="'IBM Plex Sans', sans-serif">Bearer Token 認證</text>
+
+  <line x1="335" y1="46" x2="375" y2="46" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- Raw data -->
+  <rect x="380" y="24" width="100" height="44" rx="6" fill="var(--flow-node)" stroke="var(--flow-node-stroke)" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="430" y="44" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-family="'IBM Plex Sans', sans-serif" font-weight="500">data/raw/</text>
+  <text x="430" y="58" text-anchor="middle" fill="var(--ink-muted)" font-size="9" font-family="'IBM Plex Sans', sans-serif">~460 HDF4 檔案</text>
+
+  <!-- Second row -->
+  <line x1="430" y1="68" x2="430" y2="100" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- County boundaries input -->
+  <rect x="10" y="108" width="140" height="52" rx="6" fill="var(--flow-node)" stroke="var(--flow-node-stroke)" stroke-width="1.5"/>
+  <text x="80" y="130" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-family="'IBM Plex Sans', sans-serif" font-weight="600">縣市行政區界</text>
+  <text x="80" y="146" text-anchor="middle" fill="var(--ink-muted)" font-size="10" font-family="'IBM Plex Sans', sans-serif">GeoJSON · 22 縣市</text>
+
+  <line x1="150" y1="134" x2="190" y2="134" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- Compute script -->
+  <rect x="195" y="104" width="280" height="60" rx="6" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="1.5"/>
+  <text x="335" y="126" text-anchor="middle" fill="var(--accent)" font-size="11" font-family="'IBM Plex Mono', monospace" font-weight="500">compute_ndvi_stats</text>
+  <text x="335" y="142" text-anchor="middle" fill="var(--ink-3)" font-size="10" font-family="'IBM Plex Sans', sans-serif">重投影 → 鑲嵌 → 品質過濾 → 分區統計</text>
+  <text x="335" y="156" text-anchor="middle" fill="var(--ink-muted)" font-size="9" font-family="'IBM Plex Sans', sans-serif">rasterio + geopandas</text>
+
+  <line x1="475" y1="134" x2="515" y2="134" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- JSON output -->
+  <rect x="520" y="112" width="130" height="44" rx="6" fill="var(--flow-node)" stroke="var(--flow-node-stroke)" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="585" y="132" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-family="'IBM Plex Sans', sans-serif" font-weight="500">county_ndvi.json</text>
+  <text x="585" y="146" text-anchor="middle" fill="var(--ink-muted)" font-size="9" font-family="'IBM Plex Sans', sans-serif">22 縣市 × 10 年</text>
+
+  <!-- Third row -->
+  <line x1="585" y1="156" x2="585" y2="190" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- Generate script -->
+  <rect x="315" y="195" width="160" height="60" rx="6" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="1.5"/>
+  <text x="395" y="217" text-anchor="middle" fill="var(--accent)" font-size="11" font-family="'IBM Plex Mono', monospace" font-weight="500">generate_site</text>
+  <text x="395" y="233" text-anchor="middle" fill="var(--ink-3)" font-size="10" font-family="'IBM Plex Sans', sans-serif">產生靜態網站資料</text>
+  <text x="395" y="247" text-anchor="middle" fill="var(--ink-muted)" font-size="9" font-family="'IBM Plex Sans', sans-serif">GeoJSON + JSON</text>
+
+  <line x1="475" y1="225" x2="515" y2="225" stroke="var(--flow-line)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- HTML output -->
+  <rect x="520" y="200" width="130" height="50" rx="6" fill="var(--flow-node)" stroke="var(--accent)" stroke-width="2"/>
+  <text x="585" y="222" text-anchor="middle" fill="var(--accent)" font-size="12" font-family="'IBM Plex Sans', sans-serif" font-weight="700">docs/</text>
+  <text x="585" y="238" text-anchor="middle" fill="var(--ink-3)" font-size="10" font-family="'IBM Plex Sans', sans-serif">互動式靜態網站</text>
+
+  <line x1="585" y1="190" x2="585" y2="200" stroke="var(--flow-line)" stroke-width="1.5"/>
+</svg>
+</div>
+
+<h2>處理管線詳解</h2>
+
+<div class="pipeline">
+
+  <div class="pipe-step">
+    <div class="pipe-num">1</div>
+    <div class="pipe-body">
+      <div class="pipe-title">衛星影像下載</div>
+      <div class="pipe-file">scripts/download_modis.py</div>
+      <div class="pipe-desc">
+        透過 NASA CMR（Common Metadata Repository）API，以台灣經緯度範圍（119°E–123°E, 21°N–26°N）搜尋所有涵蓋台灣的 MOD13Q1 衛星影像條目。搜尋結果經過篩選，僅保留 h28v06 與 h29v06 兩個 MODIS 圖磚。接著以 NASA Earthdata Bearer Token 認證，透過 HTTPS 從 LP DAAC 雲端逐一下載 HDF4 檔案。下載支援斷點續傳（已存在的檔案自動跳過），並驗證下載完整性。每年約 46 筆合成影像，十年共約 460 筆。
+      </div>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">2</div>
+    <div class="pipe-body">
+      <div class="pipe-title">分區統計計算</div>
+      <div class="pipe-file">scripts/compute_ndvi_stats.py</div>
+      <div class="pipe-desc">
+        對每一筆 16 天合成影像執行以下處理：
+      </div>
+      <div style="margin-top:10px">
+        <p style="font-size:14px"><strong>2a. 子資料集擷取</strong> — 從 HDF4 檔案中擷取 <code>250m 16 days NDVI</code> 子資料集，同時擷取 <code>250m 16 days pixel reliability</code> 品質旗標。</p>
+        <p style="font-size:14px"><strong>2b. 品質過濾</strong> — 僅保留品質旗標為 0（良好）或 1（尚可）的像素。被雲覆蓋、水體、積雪等低品質像素標記為無效值。</p>
+        <p style="font-size:14px"><strong>2c. 座標重投影</strong> — 將 MODIS 正弦投影（Sinusoidal）重投影至 EPSG:4326（WGS84 經緯度座標），以便與行政區界 GeoJSON 疊合。使用最近鄰插值法保持 NDVI 值不失真。</p>
+        <p style="font-size:14px"><strong>2d. 圖磚鑲嵌</strong> — 將同一日期的 h28v06 與 h29v06 兩塊圖磚合併為一張完整的台灣範圍影像。</p>
+        <p style="font-size:14px"><strong>2e. 分區統計</strong> — 對每個縣市的行政區界多邊形，裁切鑲嵌後的 NDVI 影像，計算有效像素的平均值。NDVI 原始值除以 10,000 轉換為 0–1 範圍。</p>
+        <p style="font-size:14px"><strong>2f. 年均值彙整</strong> — 將每個縣市全年所有合成影像的 NDVI 平均值彙整為該年度的代表值，輸出至 <code>county_ndvi.json</code>。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipe-step">
+    <div class="pipe-num">3</div>
+    <div class="pipe-body">
+      <div class="pipe-title">靜態網站產生</div>
+      <div class="pipe-file">scripts/generate_site.py</div>
+      <div class="pipe-desc">
+        讀取計算結果 JSON 與縣市行政區界 GeoJSON，精簡多邊形屬性後輸出至 <code>docs/data/</code> 目錄。前端頁面 <code>docs/index.html</code> 在瀏覽器端載入這些資料，以 Leaflet 渲染互動地圖、以 Chart.js 繪製趨勢圖表。整個網站為純靜態檔案，無需後端伺服器。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<h2>輸出資料格式</h2>
+
+<p>核心輸出檔案為 <code>data/county_ndvi.json</code>，結構如下：</p>
+
+<pre><code>{
+  "metadata": {
+    "product": "MOD13Q1 v061",
+    "resolution": "250m",
+    "aggregation": "yearly mean",
+    "date_range": "2016-2025"
+  },
+  "counties": [
+    {
+      "code": "63000",
+      "name": "臺北市",
+      "name_en": "Taipei City",
+      "ndvi_yearly": {
+        "2016": 0.6191,
+        "2017": 0.6048,
+        ...
+        "2025": 0.5936
+      }
+    },
+    ...
+  ]
+}</code></pre>
+
+<h2>互動式報告功能</h2>
+
+<p>前端報告頁面提供三個主要互動區塊：</p>
+
+<div class="tech-grid">
+  <div class="tech-item">
+    <div class="name">NDVI 色階地圖</div>
+    <div class="role">以 Leaflet 渲染台灣地圖，各縣市依最新年度 NDVI 值填色。色階從暖褐色（低植被）漸變至深綠（高植被），點擊可查看個別縣市詳情。</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">縣市排序總覽表</div>
+    <div class="role">列出 22 個縣市的最新 NDVI、起始 NDVI 與十年變化幅度。欄位可排序，變化值以紅綠色標示增減方向。</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">趨勢折線圖</div>
+    <div class="role">選取縣市後，以 Chart.js 繪製該縣市 2016–2025 年的 NDVI 年均值折線，同時疊加全國平均線作為參照。含互動式提示框。</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">統計摘要磚</div>
+    <div class="role">顯示選取縣市的最新 NDVI 數值、十年絕對變化量（含百分比）、以及全國平均值，快速掌握該縣市的植被狀態。</div>
+  </div>
+</div>
+
+<h2>專案檔案結構</h2>
+
+<div class="file-tree">
+<span class="dir">ndvi/</span>
+├── <span class="dir">scripts/</span>
+│   ├── download_modis.py     <span class="comment"># 衛星影像下載</span>
+│   ├── compute_ndvi_stats.py <span class="comment"># 分區統計計算</span>
+│   └── generate_site.py      <span class="comment"># 靜態網站產生</span>
+├── <span class="dir">data/</span>
+│   ├── <span class="dir">raw/</span>                  <span class="comment"># HDF4 原始檔案（gitignore）</span>
+│   ├── <span class="dir">processed/</span>            <span class="comment"># 中間處理檔案（gitignore）</span>
+│   └── county_ndvi.json      <span class="comment"># 計算結果</span>
+├── <span class="dir">docs/</span>
+│   ├── index.html            <span class="comment"># 互動式報告頁面</span>
+│   ├── about.html            <span class="comment"># 本說明頁面</span>
+│   └── <span class="dir">data/</span>
+│       ├── county_ndvi.json  <span class="comment"># 前端資料副本</span>
+│       └── counties.geojson  <span class="comment"># 精簡行政區界</span>
+└── .gitignore
+</div>
+
+<h2>使用的技術</h2>
+
+<div class="tech-grid">
+  <div class="tech-item">
+    <div class="name">Python 3</div>
+    <div class="role">資料處理管線主語言</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">rasterio + GDAL</div>
+    <div class="role">讀取 HDF4、重投影、影像鑲嵌</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">geopandas + shapely</div>
+    <div class="role">行政區界載入、分區裁切</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">NumPy</div>
+    <div class="role">柵格資料運算、統計彙整</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">NASA CMR API</div>
+    <div class="role">衛星影像搜尋與索引</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">Leaflet</div>
+    <div class="role">互動式色階地圖</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">Chart.js</div>
+    <div class="role">NDVI 趨勢折線圖</div>
+  </div>
+  <div class="tech-item">
+    <div class="name">OpenStreetMap</div>
+    <div class="role">底圖圖磚服務</div>
+  </div>
+</div>
+
+<h2>執行方式</h2>
+
+<div class="usage-step">
+  <div class="step-label">步驟一：下載衛星影像</div>
+  <pre><code>EARTHDATA_TOKEN="your_token" python3 scripts/download_modis.py</code></pre>
+  <p>需要 NASA Earthdata 帳號的 JWT Token。下載約 460 個 HDF4 檔案，約需 50GB 磁碟空間。</p>
+</div>
+
+<div class="usage-step">
+  <div class="step-label">步驟二：計算分區統計</div>
+  <pre><code>python3 scripts/compute_ndvi_stats.py</code></pre>
+  <p>處理所有下載的 HDF4 檔案，輸出 <code>data/county_ndvi.json</code>。視硬體效能約需 30–60 分鐘。</p>
+</div>
+
+<div class="usage-step">
+  <div class="step-label">步驟三：產生靜態網站</div>
+  <pre><code>python3 scripts/generate_site.py</code></pre>
+  <p>將計算結果複製至 <code>docs/data/</code>，靜態網站即可透過任何網頁伺服器提供服務。</p>
+</div>
+
+<h2>方法學限制</h2>
+
+<p>
+  MODIS MOD13Q1 的 250 公尺解析度適合縣市層級的整體趨勢分析，但無法辨識個別街廓或小型綠地的變化。16 天合成影像已儘可能排除雲覆蓋影響，但台灣多雨的氣候仍可能造成部分時段的有效觀測數量較少。NDVI 反映的是整體植被覆蓋密度，無法區分自然林地、農田、與人工綠化的差異。年均值平滑了季節性波動，適合追蹤長期趨勢，但可能遮蔽特定季節的劇烈變化。
+</p>
+
+</div>
