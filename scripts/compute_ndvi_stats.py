@@ -230,7 +230,26 @@ def main():
             "green_ha_yearly": {},
         }
 
+    if OUTPUT_JSON.exists():
+        with open(OUTPUT_JSON, encoding="utf-8") as f:
+            prev = json.load(f)
+        for county in prev.get("counties", []):
+            code = county.get("code")
+            if code in results:
+                results[code]["ndvi_yearly"] = county.get("ndvi_yearly", {})
+                results[code]["green_ha_yearly"] = county.get("green_ha_yearly", {})
+        print(f"  Loaded previous results, will skip already-processed years")
+
     for year in YEARS:
+        year_str = str(year)
+        already_done = all(
+            year_str in results[c]["ndvi_yearly"] for c in results
+            if results[c]["area_ha"] > 100
+        )
+        if already_done:
+            print(f"\n{year}: already processed, skipping")
+            continue
+
         print(f"\nProcessing {year}...")
         hdf_files = find_hdf_files(year)
         if not hdf_files:
@@ -251,9 +270,9 @@ def main():
         for code, values in yearly_values.items():
             if values:
                 mean_ndvi = round(float(np.mean(values)), 4)
-                results[code]["ndvi_yearly"][str(year)] = mean_ndvi
+                results[code]["ndvi_yearly"][year_str] = mean_ndvi
                 county_area = results[code]["area_ha"]
-                results[code]["green_ha_yearly"][str(year)] = round(
+                results[code]["green_ha_yearly"][year_str] = round(
                     mean_ndvi * county_area, 1
                 )
 

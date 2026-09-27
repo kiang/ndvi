@@ -4,3 +4,4 @@ data/processed/
 __pycache__/
 *.pyc
 .env
+.earthdata_token

@@ -31,9 +31,13 @@ VERSION = "061"
 CMR_URL = "https://cmr.earthdata.nasa.gov/search/granules.json"
 CMR_PAGE_SIZE = 200
 
+TOKEN_FILE = Path(__file__).parent.parent / ".earthdata_token"
+
 def get_earthdata_session():
     session = requests.Session()
     token = os.environ.get("EARTHDATA_TOKEN")
+    if not token and TOKEN_FILE.exists():
+        token = TOKEN_FILE.read_text().strip()
     if token:
         session.headers["Authorization"] = f"Bearer {token}"
         return session
@@ -134,11 +138,18 @@ def main():
         print("or configure ~/.netrc with machine urs.earthdata.nasa.gov")
         sys.exit(1)
 
-    print(f"Searching for {PRODUCT} v{VERSION} granules covering Taiwan...")
+    print(f"Searching for {PRODUCT} v{VERSION} granules covering Taiwan...",
+          flush=True)
     all_granules = search_granules()
-    print(f"  Found {len(all_granules)} granules")
+    print(f"  Found {len(all_granules)} granules", flush=True)
 
-    print(f"\nTotal granules to download: {len(all_granules)}")
+    existing = sum(
+        1 for g in all_granules
+        if (DATA_DIR / g["date"][:4] / g["filename"]).exists()
+    )
+    remaining = len(all_granules) - existing
+    print(f"\nTotal: {len(all_granules)}, existing: {existing}, "
+          f"to download: {remaining}", flush=True)
 
     downloaded = 0
     skipped = 0
@@ -146,18 +157,20 @@ def main():
     for i, granule in enumerate(all_granules, 1):
         year = granule["date"][:4]
         dest = DATA_DIR / year / granule["filename"]
-        if dest.exists():
+        if dest.exists() and dest.stat().st_size > 1000:
             skipped += 1
             continue
-        print(f"  [{i}/{len(all_granules)}] Downloading {granule['filename']}...")
+        print(f"  [{downloaded + 1}/{remaining}] {granule['filename']}...",
+              flush=True)
         if download_file(session, granule["url"], dest):
             downloaded += 1
         else:
             failed += 1
-        if i % 10 == 0:
+        if downloaded % 10 == 0 and downloaded > 0:
             time.sleep(1)
 
-    print(f"\nDone: {downloaded} downloaded, {skipped} skipped (existing), {failed} failed")
+    print(f"\nDone: {downloaded} downloaded, {skipped} already existed, "
+          f"{failed} failed", flush=True)
 
 if __name__ == "__main__":
     main()
