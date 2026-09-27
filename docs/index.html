@@ -284,7 +284,7 @@ body {
 
 #chart-container {
   position: relative;
-  height: 260px;
+  height: 320px;
 }
 #chart-container canvas {
   width: 100% !important;
@@ -651,17 +651,30 @@ body {
     renderTable();
   }
 
+  function buildNationalAvgByDate() {
+    const dateMap = {};
+    ndviData.counties.forEach(c => {
+      if (!c.ndvi_dates) return;
+      Object.entries(c.ndvi_dates).forEach(([d, v]) => {
+        if (!dateMap[d]) dateMap[d] = [];
+        dateMap[d].push(v);
+      });
+    });
+    const avgByDate = {};
+    Object.entries(dateMap).forEach(([d, vals]) => {
+      avgByDate[d] = vals.reduce((a, b) => a + b, 0) / vals.length;
+    });
+    return avgByDate;
+  }
+
   function renderChart(county) {
     const ctx = document.getElementById('ndvi-chart');
+    const dates = county.ndvi_dates || {};
+    const sortedDates = Object.keys(dates).sort();
+    const countyValues = sortedDates.map(d => dates[d]);
 
-    const greenYearly = county.green_ha_yearly || {};
-    const countyValues = YEARS.map(y => greenYearly[y] || null);
-    const avgGreenValues = YEARS.map(y => {
-      const vals = ndviData.counties
-        .map(c => c.green_ha_yearly ? c.green_ha_yearly[y] : null)
-        .filter(v => v != null);
-      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-    });
+    const natAvg = buildNationalAvgByDate();
+    const avgValues = sortedDates.map(d => natAvg[d] || null);
 
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       && document.documentElement.dataset.theme !== 'light'
@@ -676,32 +689,31 @@ body {
     chart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: YEARS,
+        labels: sortedDates,
         datasets: [
           {
-            label: county.name + ' 綠覆蓋(公頃)',
+            label: county.name,
             data: countyValues,
             borderColor: accentColor,
-            backgroundColor: accentColor + '18',
-            borderWidth: 2,
-            pointRadius: 4,
+            backgroundColor: accentColor + '10',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 4,
             pointBackgroundColor: accentColor,
             pointBorderColor: isDark ? '#1a1a19' : '#fcfcfb',
             pointBorderWidth: 2,
-            pointHoverRadius: 6,
             fill: true,
-            tension: 0.25,
+            tension: 0.3,
           },
           {
             label: '全國平均',
-            data: avgGreenValues,
+            data: avgValues,
             borderColor: mutedColor,
-            borderWidth: 1.5,
-            borderDash: [],
+            borderWidth: 1,
             pointRadius: 0,
             pointHoverRadius: 3,
             fill: false,
-            tension: 0.25,
+            tension: 0.3,
           }
         ],
       },
@@ -738,26 +750,40 @@ body {
             callbacks: {
               label: function(ctx) {
                 if (ctx.parsed.y == null) return `${ctx.dataset.label}: —`;
-                return `${ctx.dataset.label}: ${Math.round(ctx.parsed.y).toLocaleString('zh-TW')} 公頃`;
+                return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(4)}`;
               }
             }
           },
         },
         scales: {
           x: {
+            type: 'category',
             grid: { display: false },
             ticks: {
               color: tickColor,
-              font: { size: 11, family: "'IBM Plex Sans', sans-serif" },
+              font: { size: 10, family: "'IBM Plex Sans', sans-serif" },
+              maxRotation: 0,
+              callback: function(val, idx) {
+                const label = this.getLabelForValue(val);
+                if (label.endsWith('-01-01') || label.endsWith('-01-17')) return label.substring(0, 4);
+                return '';
+              },
+              autoSkip: false,
             },
             border: { color: isDark ? '#383835' : '#c3c2b7' },
           },
           y: {
             grid: { color: gridColor },
+            title: {
+              display: true,
+              text: 'NDVI',
+              color: tickColor,
+              font: { size: 11, family: "'IBM Plex Sans', sans-serif" },
+            },
             ticks: {
               color: tickColor,
               font: { size: 11, family: "'IBM Plex Sans', sans-serif" },
-              callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'K' : v.toFixed(0),
+              callback: v => v.toFixed(2),
             },
             border: { display: false },
           },

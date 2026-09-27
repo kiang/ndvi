@@ -37,8 +37,16 @@ QA_SUBDATASET = "250m 16 days pixel reliability"
 NDVI_SCALE = 0.0001
 DST_CRS = "EPSG:4326"
 
-from datetime import datetime as _dt
+from datetime import datetime as _dt, timedelta
 YEARS = range(2016, _dt.now().year + 1)
+
+
+def julian_to_date(date_key):
+    """Convert MODIS date key like 'A2016001' to 'YYYY-MM-DD'."""
+    year = int(date_key[1:5])
+    jday = int(date_key[5:8])
+    d = _dt(year, 1, 1) + timedelta(days=jday - 1)
+    return d.strftime("%Y-%m-%d")
 
 MODIS_SINU_WKT = osr.SpatialReference()
 MODIS_SINU_WKT.ImportFromProj4(
@@ -227,8 +235,7 @@ def main():
             "name": row["COUNTYNAME"],
             "name_en": row["COUNTYENG"],
             "area_ha": area_ha.get(code, 0),
-            "ndvi_yearly": {},
-            "green_ha_yearly": {},
+            "ndvi_dates": {},
         }
 
     if OUTPUT_JSON.exists():
@@ -237,18 +244,17 @@ def main():
         for county in prev.get("counties", []):
             code = county.get("code")
             if code in results:
-                results[code]["ndvi_yearly"] = county.get("ndvi_yearly", {})
-                results[code]["green_ha_yearly"] = county.get("green_ha_yearly", {})
+                results[code]["ndvi_dates"] = county.get("ndvi_dates", {})
         print(f"  Loaded previous results, will skip already-processed years")
 
     for year in YEARS:
         year_str = str(year)
-        already_done = all(
-            year_str in results[c]["ndvi_yearly"] for c in results
-            if results[c]["area_ha"] > 100
-        )
-        if already_done:
-            print(f"\n{year}: already processed, skipping")
+        existing_dates = [
+            d for d in results[list(results.keys())[0]]["ndvi_dates"]
+            if d.startswith(year_str)
+        ]
+        if existing_dates:
+            print(f"\n{year}: {len(existing_dates)} composites already processed, skipping")
             continue
 
         print(f"\nProcessing {year}...")
@@ -260,33 +266,47 @@ def main():
         date_groups = group_hdf_by_date(hdf_files)
         print(f"  Found {len(hdf_files)} files in {len(date_groups)} composites")
 
-        yearly_values = defaultdict(list)
         for i, (date_key, files) in enumerate(sorted(date_groups.items()), 1):
-            print(f"  [{i}/{len(date_groups)}] Processing {date_key}...")
+            iso_date = julian_to_date(date_key)
+            print(f"  [{i}/{len(date_groups)}] Processing {date_key} ({iso_date})...")
             county_ndvi = process_date(files, counties_gdf)
             for code, val in county_ndvi.items():
                 if 0 < val < 1:
-                    yearly_values[code].append(val)
+                    results[code]["ndvi_dates"][iso_date] = round(val, 4)
 
-        for code, values in yearly_values.items():
-            if values:
-                mean_ndvi = round(float(np.mean(values)), 4)
-                results[code]["ndvi_yearly"][year_str] = mean_ndvi
-                county_area = results[code]["area_ha"]
-                results[code]["green_ha_yearly"][year_str] = round(
-                    mean_ndvi * county_area, 1
-                )
+    counties_out = []
+    for code, county in results.items():
+        dates = county["ndvi_dates"]
+        ndvi_yearly = {}
+        green_ha_yearly = {}
+        for year in YEARS:
+            ys = str(year)
+            year_vals = [v for d, v in dates.items() if d.startswith(ys)]
+            if year_vals:
+                mean_ndvi = round(float(np.mean(year_vals)), 4)
+                ndvi_yearly[ys] = mean_ndvi
+                green_ha_yearly[ys] = round(mean_ndvi * county["area_ha"], 1)
+
+        counties_out.append({
+            "code": county["code"],
+            "name": county["name"],
+            "name_en": county["name_en"],
+            "area_ha": county["area_ha"],
+            "ndvi_dates": dates,
+            "ndvi_yearly": ndvi_yearly,
+            "green_ha_yearly": green_ha_yearly,
+        })
 
     output = {
         "metadata": {
             "product": "MOD13Q1 v061",
             "resolution": "250m",
             "temporal_composite": "16-day",
-            "aggregation": "yearly mean",
+            "aggregation": "per composite + yearly mean",
             "date_range": f"{YEARS.start}-{YEARS.stop - 1}",
             "generated": str(np.datetime64("today")),
         },
-        "counties": list(results.values()),
+        "counties": counties_out,
     }
 
     OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -295,15 +315,15 @@ def main():
     print(f"\nOutput written to {OUTPUT_JSON}")
 
     print("\nSummary:")
-    for county in output["counties"]:
-        years_with_data = len(county["ndvi_yearly"])
-        if years_with_data > 0:
+    for county in counties_out:
+        n_dates = len(county["ndvi_dates"])
+        n_years = len(county["ndvi_yearly"])
+        if n_dates > 0:
             vals = list(county["ndvi_yearly"].values())
-            green_vals = list(county["green_ha_yearly"].values())
             print(
                 f"  {county['name']} ({county['name_en']}): "
-                f"{years_with_data} years, NDVI {min(vals):.4f}-{max(vals):.4f}, "
-                f"green {min(green_vals):,.0f}-{max(green_vals):,.0f} ha"
+                f"{n_dates} composites, {n_years} years, "
+                f"NDVI {min(vals):.4f}-{max(vals):.4f}"
             )
         else:
             print(f"  {county['name']} ({county['name_en']}): no data")
