@@ -1,0 +1,753 @@
+<title>台灣植被指數</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --surface: #f7f8f5;
+  --surface-card: #ffffff;
+  --surface-chart: #fcfcfb;
+  --ink-primary: #1a1f14;
+  --ink-secondary: #4a5240;
+  --ink-muted: #7a8570;
+  --ink-faint: #b0b8a6;
+  --border: #dde3d4;
+  --border-light: #eef1e8;
+  --accent: #2d6a1e;
+  --accent-light: #4a9038;
+  --ndvi-0: #f2e6d9;
+  --ndvi-1: #d4ddb0;
+  --ndvi-2: #a8c670;
+  --ndvi-3: #6faa3a;
+  --ndvi-4: #3d8b1f;
+  --ndvi-5: #256a12;
+  --ndvi-6: #164d0a;
+  --delta-up: #006300;
+  --delta-down: #d03b3b;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #111410;
+    --surface-card: #1a1e17;
+    --surface-chart: #1a1a19;
+    --ink-primary: #edf0e8;
+    --ink-secondary: #b8c0ac;
+    --ink-muted: #7f8a72;
+    --ink-faint: #4a5240;
+    --border: #2e3528;
+    --border-light: #232a1e;
+    --accent: #5cb34a;
+    --accent-light: #78cc66;
+    --ndvi-0: #3d3428;
+    --ndvi-1: #3e4a28;
+    --ndvi-2: #4a6430;
+    --ndvi-3: #3d7a22;
+    --ndvi-4: #308a18;
+    --ndvi-5: #27a010;
+    --ndvi-6: #1fb80c;
+    --delta-up: #0ca30c;
+    --delta-down: #e66767;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #111410;
+  --surface-card: #1a1e17;
+  --surface-chart: #1a1a19;
+  --ink-primary: #edf0e8;
+  --ink-secondary: #b8c0ac;
+  --ink-muted: #7f8a72;
+  --ink-faint: #4a5240;
+  --border: #2e3528;
+  --border-light: #232a1e;
+  --accent: #5cb34a;
+  --accent-light: #78cc66;
+  --ndvi-0: #3d3428;
+  --ndvi-1: #3e4a28;
+  --ndvi-2: #4a6430;
+  --ndvi-3: #3d7a22;
+  --ndvi-4: #308a18;
+  --ndvi-5: #27a010;
+  --ndvi-6: #1fb80c;
+  --delta-up: #0ca30c;
+  --delta-down: #e66767;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 16px;
+  padding-block: 0;
+  background: var(--surface);
+  color: var(--ink-primary);
+  font-family: 'IBM Plex Sans', 'Noto Sans TC', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.page-header {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 0 24px;
+}
+.page-header h1 {
+  font-family: 'Noto Sans TC', 'IBM Plex Sans', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+}
+.page-header .subtitle {
+  font-size: 14px;
+  color: var(--ink-muted);
+  margin: 0;
+}
+.page-header .data-note {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin: 6px 0 0;
+}
+
+.layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding-bottom: 40px;
+}
+
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin: 0 0 14px;
+}
+
+.map-card {
+  grid-column: 1;
+  min-height: 480px;
+}
+
+.table-card {
+  grid-column: 2;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-card {
+  grid-column: 1 / -1;
+}
+
+#map {
+  height: 420px;
+  border-radius: 6px;
+  background: var(--surface-chart);
+}
+
+.legend-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.legend-gradient {
+  flex: 1;
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--ndvi-0), var(--ndvi-1), var(--ndvi-2), var(--ndvi-3), var(--ndvi-4), var(--ndvi-5), var(--ndvi-6));
+}
+
+.county-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+
+.county-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.county-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-card);
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  z-index: 1;
+}
+.county-table th:nth-child(2),
+.county-table th:nth-child(3),
+.county-table th:nth-child(4) { text-align: right; }
+.county-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--ink-secondary);
+}
+.county-table td:nth-child(2),
+.county-table td:nth-child(3),
+.county-table td:nth-child(4) { text-align: right; }
+.county-table tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.county-table tbody tr:hover {
+  background: var(--border-light);
+}
+.county-table tbody tr.active {
+  background: var(--border-light);
+}
+.county-name-cell {
+  font-weight: 500;
+  color: var(--ink-primary);
+}
+.delta-up { color: var(--delta-up); }
+.delta-down { color: var(--delta-down); }
+
+.detail-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.detail-county-name {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-primary);
+}
+.detail-county-eng {
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+.detail-stats {
+  display: flex;
+  gap: 28px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+}
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin-bottom: 2px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  line-height: 1.1;
+}
+.stat-delta {
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+#chart-container {
+  position: relative;
+  height: 260px;
+}
+#chart-container canvas {
+  width: 100% !important;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.sort-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.sort-btn:hover { color: var(--ink-primary); }
+.sort-indicator { font-size: 9px; }
+
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; }
+  .map-card, .table-card, .detail-card { grid-column: 1; }
+  .table-card { max-height: 400px; }
+  #map { height: 320px; }
+  .page-header h1 { font-size: 22px; }
+  .detail-stats { gap: 16px; }
+  .stat-value { font-size: 22px; }
+}
+</style>
+
+<header class="page-header">
+  <h1>台灣各縣市植被指數變化</h1>
+  <p class="subtitle">2016–2025 年各縣市 NDVI 植被覆蓋變化報告</p>
+  <p class="data-note" id="data-note"></p>
+</header>
+
+<div class="layout">
+  <div class="card map-card">
+    <h2 class="card-title">NDVI 地圖 — <span id="map-year-label">2025</span></h2>
+    <div id="map"></div>
+    <div class="legend-bar">
+      <span>低</span>
+      <div class="legend-gradient"></div>
+      <span>高</span>
+    </div>
+  </div>
+
+  <div class="card table-card">
+    <h2 class="card-title">縣市總覽</h2>
+    <div class="county-table-wrap">
+      <table class="county-table">
+        <thead>
+          <tr>
+            <th><button class="sort-btn" data-sort="name">縣市 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-btn" data-sort="latest">最新值 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-btn" data-sort="earliest">起始值 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-btn" data-sort="change">變化 <span class="sort-indicator"></span></button></th>
+          </tr>
+        </thead>
+        <tbody id="county-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card detail-card" id="detail-card">
+    <div class="empty-state" id="detail-empty">
+      點選地圖或表格中的縣市，查看其 NDVI 變化趨勢
+    </div>
+    <div id="detail-content" hidden>
+      <div class="detail-header">
+        <span class="detail-county-name" id="detail-name"></span>
+        <span class="detail-county-eng" id="detail-eng"></span>
+      </div>
+      <div class="detail-stats">
+        <div class="stat-tile">
+          <span class="stat-label">最新 NDVI</span>
+          <span class="stat-value" id="stat-latest"></span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">十年變化</span>
+          <span class="stat-value" id="stat-change"></span>
+          <span class="stat-delta" id="stat-delta"></span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">全國平均</span>
+          <span class="stat-value" id="stat-avg"></span>
+        </div>
+      </div>
+      <div id="chart-container">
+        <canvas id="ndvi-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let ndviData = null;
+  let geoData = null;
+  let map = null;
+  let geoLayer = null;
+  let chart = null;
+  let selectedCode = null;
+  let sortState = { key: 'name', asc: true };
+
+  const YEARS = [];
+  for (let y = 2016; y <= 2025; y++) YEARS.push(String(y));
+
+  const NDVI_COLORS = [
+    { stop: 0.15, color: [242, 230, 217] },
+    { stop: 0.30, color: [212, 221, 176] },
+    { stop: 0.40, color: [168, 198, 112] },
+    { stop: 0.50, color: [111, 170, 58] },
+    { stop: 0.60, color: [61, 139, 31] },
+    { stop: 0.70, color: [37, 106, 18] },
+    { stop: 0.80, color: [22, 77, 10] },
+  ];
+
+  function ndviColor(val) {
+    if (val == null || isNaN(val)) return 'rgba(200,200,200,0.3)';
+    for (let i = 0; i < NDVI_COLORS.length - 1; i++) {
+      if (val <= NDVI_COLORS[i + 1].stop) {
+        const t = (val - NDVI_COLORS[i].stop) / (NDVI_COLORS[i + 1].stop - NDVI_COLORS[i].stop);
+        const a = NDVI_COLORS[i].color;
+        const b = NDVI_COLORS[i + 1].color;
+        const r = Math.round(a[0] + (b[0] - a[0]) * Math.max(0, Math.min(1, t)));
+        const g = Math.round(a[1] + (b[1] - a[1]) * Math.max(0, Math.min(1, t)));
+        const bl = Math.round(a[2] + (b[2] - a[2]) * Math.max(0, Math.min(1, t)));
+        return `rgb(${r},${g},${bl})`;
+      }
+    }
+    const last = NDVI_COLORS[NDVI_COLORS.length - 1].color;
+    return `rgb(${last[0]},${last[1]},${last[2]})`;
+  }
+
+  function getCounty(code) {
+    return ndviData.counties.find(c => c.code === code);
+  }
+
+  function getLatestYear(county) {
+    const years = Object.keys(county.ndvi_yearly).sort();
+    return years[years.length - 1];
+  }
+  function getEarliestYear(county) {
+    const years = Object.keys(county.ndvi_yearly).sort();
+    return years[0];
+  }
+
+  function getNationalAvg(year) {
+    const vals = ndviData.counties
+      .map(c => c.ndvi_yearly[year])
+      .filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  }
+
+  function formatNdvi(val) {
+    return val != null ? val.toFixed(3) : '—';
+  }
+
+  function initMap() {
+    map = L.map('map', {
+      center: [23.7, 121],
+      zoom: 7,
+      zoomControl: true,
+      attributionControl: false,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+  }
+
+  function updateMap() {
+    if (geoLayer) map.removeLayer(geoLayer);
+    const latestYear = '2025';
+    geoLayer = L.geoJSON(geoData, {
+      style: function(feature) {
+        const county = getCounty(feature.properties.COUNTYCODE);
+        const val = county ? county.ndvi_yearly[latestYear] : null;
+        const isSelected = feature.properties.COUNTYCODE === selectedCode;
+        return {
+          fillColor: ndviColor(val),
+          fillOpacity: 0.85,
+          weight: isSelected ? 2.5 : 1,
+          color: isSelected ? '#1a1f14' : 'rgba(255,255,255,0.7)',
+          opacity: 1,
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const county = getCounty(feature.properties.COUNTYCODE);
+        if (county) {
+          const latest = county.ndvi_yearly['2025'];
+          layer.bindTooltip(
+            `<strong>${county.name}</strong><br>NDVI: ${formatNdvi(latest)}`,
+            { sticky: true, className: 'ndvi-tooltip' }
+          );
+        }
+        layer.on('click', function() {
+          selectCounty(feature.properties.COUNTYCODE);
+        });
+      },
+    }).addTo(map);
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('county-tbody');
+    const rows = ndviData.counties.map(county => {
+      const years = Object.keys(county.ndvi_yearly).sort();
+      const latest = county.ndvi_yearly[years[years.length - 1]];
+      const earliest = county.ndvi_yearly[years[0]];
+      const change = (latest != null && earliest != null) ? latest - earliest : null;
+      return { county, latest, earliest, change };
+    });
+
+    rows.sort((a, b) => {
+      let va, vb;
+      switch (sortState.key) {
+        case 'name': va = a.county.name; vb = b.county.name; break;
+        case 'latest': va = a.latest || 0; vb = b.latest || 0; break;
+        case 'earliest': va = a.earliest || 0; vb = b.earliest || 0; break;
+        case 'change': va = a.change || 0; vb = b.change || 0; break;
+      }
+      if (sortState.key === 'name') {
+        return sortState.asc ? va.localeCompare(vb, 'zh-TW') : vb.localeCompare(va, 'zh-TW');
+      }
+      return sortState.asc ? va - vb : vb - va;
+    });
+
+    tbody.innerHTML = rows.map(({ county, latest, earliest, change }) => {
+      const changeStr = change != null
+        ? `<span class="${change >= 0 ? 'delta-up' : 'delta-down'}">${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}%</span>`
+        : '—';
+      const active = county.code === selectedCode ? ' class="active"' : '';
+      return `<tr${active} data-code="${county.code}">
+        <td class="county-name-cell">${county.name}</td>
+        <td>${formatNdvi(latest)}</td>
+        <td>${formatNdvi(earliest)}</td>
+        <td>${changeStr}</td>
+      </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', () => selectCounty(tr.dataset.code));
+    });
+
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      const ind = btn.querySelector('.sort-indicator');
+      if (btn.dataset.sort === sortState.key) {
+        ind.textContent = sortState.asc ? '▲' : '▼';
+      } else {
+        ind.textContent = '';
+      }
+    });
+  }
+
+  function selectCounty(code) {
+    selectedCode = code;
+    const county = getCounty(code);
+    if (!county) return;
+
+    document.getElementById('detail-empty').hidden = true;
+    document.getElementById('detail-content').hidden = false;
+    document.getElementById('detail-name').textContent = county.name;
+    document.getElementById('detail-eng').textContent = county.name_en;
+
+    const years = Object.keys(county.ndvi_yearly).sort();
+    const latest = county.ndvi_yearly[years[years.length - 1]];
+    const earliest = county.ndvi_yearly[years[0]];
+    const change = (latest != null && earliest != null) ? latest - earliest : null;
+    const natAvg = getNationalAvg(years[years.length - 1]);
+
+    document.getElementById('stat-latest').textContent = formatNdvi(latest);
+
+    const changeEl = document.getElementById('stat-change');
+    const deltaEl = document.getElementById('stat-delta');
+    if (change != null) {
+      const pct = ((change / earliest) * 100).toFixed(1);
+      changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(3)}`;
+      changeEl.className = `stat-value ${change >= 0 ? 'delta-up' : 'delta-down'}`;
+      deltaEl.textContent = `自 ${years[0]} 年起 ${change >= 0 ? '+' : ''}${pct}%`;
+      deltaEl.className = `stat-delta ${change >= 0 ? 'delta-up' : 'delta-down'}`;
+    } else {
+      changeEl.textContent = '—';
+      changeEl.className = 'stat-value';
+      deltaEl.textContent = '';
+    }
+
+    document.getElementById('stat-avg').textContent = formatNdvi(natAvg);
+
+    renderChart(county);
+    updateMap();
+    renderTable();
+  }
+
+  function renderChart(county) {
+    const ctx = document.getElementById('ndvi-chart');
+
+    const countyValues = YEARS.map(y => county.ndvi_yearly[y] || null);
+    const avgValues = YEARS.map(y => getNationalAvg(y));
+
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      && document.documentElement.dataset.theme !== 'light'
+      || document.documentElement.dataset.theme === 'dark';
+
+    const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const tickColor = isDark ? '#7f8a72' : '#7a8570';
+    const accentColor = isDark ? '#5cb34a' : '#2d6a1e';
+    const mutedColor = isDark ? 'rgba(127,138,114,0.5)' : 'rgba(122,133,112,0.35)';
+
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: YEARS,
+        datasets: [
+          {
+            label: county.name,
+            data: countyValues,
+            borderColor: accentColor,
+            backgroundColor: accentColor + '18',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: accentColor,
+            pointBorderColor: isDark ? '#1a1a19' : '#fcfcfb',
+            pointBorderWidth: 2,
+            pointHoverRadius: 6,
+            fill: true,
+            tension: 0.25,
+          },
+          {
+            label: '全國平均',
+            data: avgValues,
+            borderColor: mutedColor,
+            borderWidth: 1.5,
+            borderDash: [],
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            fill: false,
+            tension: 0.25,
+          }
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'end',
+            labels: {
+              boxWidth: 14,
+              boxHeight: 2,
+              padding: 16,
+              font: { size: 12, family: "'IBM Plex Sans', sans-serif" },
+              color: tickColor,
+              usePointStyle: false,
+            },
+          },
+          tooltip: {
+            backgroundColor: isDark ? '#2a2e26' : '#fff',
+            titleColor: isDark ? '#edf0e8' : '#1a1f14',
+            bodyColor: isDark ? '#b8c0ac' : '#4a5240',
+            borderColor: isDark ? '#3a4030' : '#dde3d4',
+            borderWidth: 1,
+            padding: 10,
+            cornerRadius: 6,
+            titleFont: { size: 13, weight: '600', family: "'IBM Plex Sans', sans-serif" },
+            bodyFont: { size: 12, family: "'IBM Plex Sans', sans-serif" },
+            callbacks: {
+              label: function(ctx) {
+                return `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(4) : '—'}`;
+              }
+            }
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: tickColor,
+              font: { size: 11, family: "'IBM Plex Sans', sans-serif" },
+            },
+            border: { color: isDark ? '#383835' : '#c3c2b7' },
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: {
+              color: tickColor,
+              font: { size: 11, family: "'IBM Plex Sans', sans-serif" },
+              callback: v => v.toFixed(2),
+            },
+            border: { display: false },
+          },
+        },
+      },
+    });
+  }
+
+  function setupSorting() {
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.sort;
+        if (sortState.key === key) {
+          sortState.asc = !sortState.asc;
+        } else {
+          sortState.key = key;
+          sortState.asc = key === 'name';
+        }
+        renderTable();
+      });
+    });
+  }
+
+  async function init() {
+    const [ndviResp, geoResp] = await Promise.all([
+      fetch('data/county_ndvi.json'),
+      fetch('data/counties.geojson'),
+    ]);
+    ndviData = await ndviResp.json();
+    geoData = await geoResp.json();
+
+    const meta = ndviData.metadata || {};
+    const note = document.getElementById('data-note');
+    note.textContent = `資料來源：${meta.product || 'MODIS MOD13Q1'} · ${meta.resolution || '250m'} · ${meta.aggregation || '年均值'}`;
+    if (meta.product && meta.product.includes('SAMPLE')) {
+      note.textContent += ' — 預覽用範例資料';
+    }
+
+    initMap();
+    updateMap();
+    renderTable();
+    setupSorting();
+  }
+
+  init();
+})();
+</script>
+
+<style>
+.ndvi-tooltip {
+  font-family: 'IBM Plex Sans', 'Noto Sans TC', sans-serif;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--ink-primary);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.leaflet-container {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+</style>
