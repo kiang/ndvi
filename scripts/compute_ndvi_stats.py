@@ -15,19 +15,20 @@ from collections import defaultdict
 
 import numpy as np
 import geopandas as gpd
+from osgeo import gdal, osr
 import rasterio
-from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.mask import mask as rasterio_mask
 from rasterio.merge import merge
 from rasterio.io import MemoryFile
+from rasterio.transform import Affine
 from shapely.geometry import mapping
 
-warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
+gdal.UseExceptions()
+warnings.filterwarnings("ignore")
 
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_DIR = PROJECT_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
-PROCESSED_DIR = DATA_DIR / "processed"
 COUNTY_GEOJSON = Path("/home/kiang/public_html/taiwan_basecode/county/geo/20200820.json")
 OUTPUT_JSON = DATA_DIR / "county_ndvi.json"
 
@@ -38,62 +39,80 @@ DST_CRS = "EPSG:4326"
 
 YEARS = range(2016, 2026)
 
+MODIS_SINU_WKT = osr.SpatialReference()
+MODIS_SINU_WKT.ImportFromProj4(
+    "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
+)
+MODIS_SINU_STR = MODIS_SINU_WKT.ExportToWkt()
+
 
 def find_hdf_files(year):
-    """Find all HDF4 files for a given year."""
     pattern = str(RAW_DIR / str(year) / "*.hdf")
     return sorted(glob.glob(pattern))
 
 
-def get_subdataset(hdf_path, subdataset_name):
-    """Get the path to a specific subdataset within an HDF4 file."""
-    with rasterio.open(hdf_path) as ds:
-        for name, desc in ds.subdatasets:
-            if subdataset_name in desc or subdataset_name in name:
-                return name
+def get_subdataset_path(hdf_path, subdataset_name):
+    """Get the GDAL subdataset path from an HDF4 file."""
+    ds = gdal.Open(hdf_path)
+    if ds is None:
+        return None
+    subs = ds.GetSubDatasets()
+    ds = None
+    for path, desc in subs:
+        if subdataset_name in desc:
+            return path
     return None
 
 
-def read_and_reproject(subdataset_path):
-    """Read a MODIS subdataset and reproject to EPSG:4326."""
-    with rasterio.open(subdataset_path) as src:
-        src_crs = src.crs
-        if src_crs is None:
-            from rasterio.crs import CRS
-            src_crs = CRS.from_proj4(
-                "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 "
-                "+R=6371007.181 +units=m +no_defs"
-            )
+def read_and_reproject_gdal(subdataset_path):
+    """Read a MODIS subdataset via GDAL and reproject to EPSG:4326.
+    Returns (data_array[1,H,W], rasterio_profile)."""
+    src_ds = gdal.Open(subdataset_path)
+    if src_ds is None:
+        return None, None
 
-        transform, width, height = calculate_default_transform(
-            src_crs, DST_CRS, src.width, src.height, *src.bounds
-        )
-        dst_data = np.empty((1, height, width), dtype=np.float32)
-        reproject(
-            source=rasterio.band(src, 1),
-            destination=dst_data[0],
-            src_transform=src.transform,
-            src_crs=src_crs,
-            dst_transform=transform,
-            dst_crs=DST_CRS,
-            resampling=Resampling.nearest,
-        )
+    src_proj = src_ds.GetProjection()
+    if not src_proj:
+        src_proj = MODIS_SINU_STR
 
+    dst_srs = osr.SpatialReference()
+    dst_srs.SetFromUserInput(DST_CRS)
+
+    src_dt = src_ds.GetRasterBand(1).DataType
+    nodata = -3000 if src_dt in (gdal.GDT_Int16, gdal.GDT_Int32, gdal.GDT_Float32, gdal.GDT_Float64) else 255
+    warp_opts = gdal.WarpOptions(
+        format="MEM",
+        srcSRS=src_proj,
+        dstSRS=dst_srs.ExportToWkt(),
+        resampleAlg=gdal.GRA_NearestNeighbour,
+        dstNodata=nodata,
+    )
+    dst_ds = gdal.Warp("", src_ds, options=warp_opts)
+    src_ds = None
+
+    if dst_ds is None:
+        return None, None
+
+    data = dst_ds.ReadAsArray().astype(np.float32)
+    gt = dst_ds.GetGeoTransform()
+    w, h = dst_ds.RasterXSize, dst_ds.RasterYSize
+    dst_ds = None
+
+    transform = Affine.from_gdal(*gt)
     profile = {
         "driver": "GTiff",
         "dtype": "float32",
-        "width": width,
-        "height": height,
+        "width": w,
+        "height": h,
         "count": 1,
         "crs": DST_CRS,
         "transform": transform,
-        "nodata": -3000,
+        "nodata": float(nodata),
     }
-    return dst_data, profile
+    return data.reshape(1, h, w), profile
 
 
 def mosaic_tiles(tile_data_list):
-    """Mosaic multiple reprojected tiles into one raster."""
     if len(tile_data_list) == 1:
         return tile_data_list[0]
 
@@ -123,7 +142,6 @@ def mosaic_tiles(tile_data_list):
 
 
 def compute_zonal_mean(data, profile, geometry):
-    """Compute mean value within a polygon geometry."""
     with MemoryFile() as memfile:
         with memfile.open(**profile) as ds:
             ds.write(data)
@@ -132,7 +150,7 @@ def compute_zonal_mean(data, profile, geometry):
                 out_image, _ = rasterio_mask(
                     ds, [mapping(geometry)], crop=True, nodata=-3000
                 )
-            except ValueError:
+            except (ValueError, Exception):
                 return np.nan
 
     valid = out_image[0]
@@ -143,21 +161,24 @@ def compute_zonal_mean(data, profile, geometry):
 
 
 def process_date(hdf_files, counties_gdf):
-    """Process a set of tile HDF files for one date, return NDVI per county."""
     tile_data = []
     for hdf_path in hdf_files:
-        ndvi_sub = get_subdataset(hdf_path, NDVI_SUBDATASET)
-        qa_sub = get_subdataset(hdf_path, QA_SUBDATASET)
+        ndvi_sub = get_subdataset_path(hdf_path, NDVI_SUBDATASET)
+        qa_sub = get_subdataset_path(hdf_path, QA_SUBDATASET)
         if ndvi_sub is None:
             print(f"    Warning: No NDVI subdataset in {hdf_path}")
             continue
 
-        ndvi_data, ndvi_profile = read_and_reproject(ndvi_sub)
+        ndvi_data, ndvi_profile = read_and_reproject_gdal(ndvi_sub)
+        if ndvi_data is None:
+            print(f"    Warning: Failed to reproject {hdf_path}")
+            continue
 
         if qa_sub:
-            qa_data, _ = read_and_reproject(qa_sub)
-            bad_mask = (qa_data[0] > 1) | (qa_data[0] < 0)
-            ndvi_data[0][bad_mask] = -3000
+            qa_data, _ = read_and_reproject_gdal(qa_sub)
+            if qa_data is not None:
+                bad_mask = (qa_data[0] > 1) | (qa_data[0] < 0)
+                ndvi_data[0][bad_mask] = -3000
 
         tile_data.append((ndvi_data, ndvi_profile))
 
@@ -176,13 +197,12 @@ def process_date(hdf_files, counties_gdf):
 
 
 def group_hdf_by_date(hdf_files):
-    """Group HDF files by their acquisition date (Julian day in filename)."""
     date_groups = defaultdict(list)
     for f in hdf_files:
         basename = os.path.basename(f)
         parts = basename.split(".")
         if len(parts) >= 2:
-            date_key = parts[1]  # e.g., A2016001
+            date_key = parts[1]
             date_groups[date_key].append(f)
     return dict(date_groups)
 
